@@ -1,7 +1,5 @@
 // source "$HOME/.cargo/env"
 
-use core::fmt;
-
 use iced::widget::button::{self, Appearance, StyleSheet};
 use iced::widget::{container, Button, Column, Row, Text};
 use iced::widget::{svg, Svg};
@@ -9,6 +7,8 @@ use iced::{
     executor, Alignment, Application, Background, BorderRadius, Color, Command, Element, Length,
     Settings,
 };
+
+use chess::{Board, Square, ALL_SQUARES};
 
 pub const SQUARE_SIZE: u16 = 50;
 pub const NUM_PIECES: usize = 6;
@@ -25,124 +25,64 @@ pub enum Message {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Piece {
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum PieceColor {
-    White,
-    Black,
-}
-
-impl Piece {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Piece::Pawn => "pawn",
-            Piece::Rook => "rook",
-            Piece::Knight => "knight",
-            Piece::Bishop => "bishop",
-            Piece::Queen => "queen",
-            Piece::King => "king",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ChessSquare {
-    col: u8,
+struct BoardSquare {
     row: u8,
-    piece: Option<Piece>,
-    color: Option<PieceColor>,
+    col: u8,
+    position: Square,
+    piece: Option<chess::Piece>,
+    piece_color: Option<chess::Color>,
+    bg_color: Option<Background>,
     button_state: button::State,
 }
 
-impl Default for ChessSquare {
+impl Default for BoardSquare {
     fn default() -> Self {
-        ChessSquare {
-            col: 0,
+        BoardSquare {
             row: 0,
+            col: 0,
+            position: Square::A1,
             piece: Option::None,
-            color: Option::None,
+            piece_color: Option::None,
+            bg_color: Option::None,
             button_state: button::State::default(),
         }
     }
 }
 
-impl ChessSquare {
+impl BoardSquare {
     fn new(
-        col: u8,
         row: u8,
-        piece: Option<Piece>,
-        color: Option<PieceColor>,
+        col: u8,
+        position: Square,
+        piece: Option<chess::Piece>,
+        piece_color: Option<chess::Color>,
         button_state: button::State,
     ) -> Self {
+        let bg_color = if (row + col) % 2 == 0 {
+            Some(Background::Color(Color::new(0.8, 0.718, 0.682, 1.0)))
+        } else {
+            Some(Background::Color(Color::new(0.439, 0.4, 0.467, 1.0)))
+        };
+
         Self {
-            col,
             row,
+            col,
+            position,
             piece,
-            color,
+            piece_color,
+            bg_color,
             button_state,
         }
     }
-
-    fn get_bg_color(&self) -> Option<Background> {
-        if (self.row + self.col) % 2 == 0 {
-            return Some(Background::Color(Color::new(0.8, 0.718, 0.682, 1.0)));
-        }
-
-        Some(Background::Color(Color::new(0.439, 0.4, 0.467, 1.0)))
-    }
-
-    fn get_icon(&self) -> Svg {
-        let icon_path = match self.piece {
-            Some(piece) => match self.color {
-                Some(color) => match color {
-                    PieceColor::White => format!(
-                        "{}/icon/white/{}.svg",
-                        env!("CARGO_MANIFEST_DIR"),
-                        piece.as_str()
-                    ),
-                    PieceColor::Black => format!(
-                        "{}/icon/black/{}.svg",
-                        env!("CARGO_MANIFEST_DIR"),
-                        piece.as_str()
-                    ),
-                },
-                None => format!("{}/icon/empty.svg", env!("CARGO_MANIFEST_DIR")),
-            },
-            None => format!("{}/icon/empty.svg", env!("CARGO_MANIFEST_DIR")),
-        };
-
-        svg(svg::Handle::from_path(icon_path))
-            .width(Length::Fill)
-            .height(Length::Fill)
-    }
 }
 
-impl StyleSheet for ChessSquare {
+impl StyleSheet for BoardSquare {
     type Style = iced::Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {
         Appearance {
             shadow_offset: Default::default(),
-            background: self.get_bg_color(),
-            border_radius: BorderRadius::from(0.0),
-            border_width: 0.0,
-            border_color: Default::default(),
-            text_color: Color::new(0.0, 0.0, 0.0, 0.0),
-        }
-    }
-
-    fn pressed (&self, style: &Self::Style) -> Appearance {
-        Appearance {
-            shadow_offset: Default::default(),
-            background: Some(Background::Color(Color::new(0.0, 0.0, 0.0, 1.0))),
+            background: self.bg_color,
             border_radius: BorderRadius::from(0.0),
             border_width: 0.0,
             border_color: Default::default(),
@@ -153,7 +93,49 @@ impl StyleSheet for ChessSquare {
 
 #[derive(Clone, Copy)]
 struct ChessBoard {
-    chess_squares: [[ChessSquare; 8]; 8],
+    squares: [BoardSquare; ALL_SQUARES.len()],
+    board: Board,
+}
+
+fn get_peice_str(piece: Option<chess::Piece>) -> &'static str {
+    match piece {
+        Some(p) => match p {
+            chess::Piece::Pawn => "pawn",
+            chess::Piece::Rook => "rook",
+            chess::Piece::Knight => "knight",
+            chess::Piece::Bishop => "bishop",
+            chess::Piece::Queen => "queen",
+            chess::Piece::King => "king",
+        },
+        None => "none",
+    }
+}
+
+fn get_color_str(color: Option<chess::Color>) -> &'static str {
+    match color {
+        Some(c) => match c {
+            chess::Color::White => "white",
+            chess::Color::Black => "black",
+        },
+        None => "none",
+    }
+}
+
+fn get_icon(piece: Option<chess::Piece>, color: Option<chess::Color>) -> Svg {
+    let icon_path = if piece != Option::None && color != Option::None {
+        format!(
+            "{}/icon/{}/{}.svg",
+            env!("CARGO_MANIFEST_DIR"),
+            get_color_str(color),
+            get_peice_str(piece)
+        )
+    } else {
+        format!("{}/icon/empty.svg", env!("CARGO_MANIFEST_DIR"))
+    };
+
+    svg(svg::Handle::from_path(icon_path))
+        .width(Length::Fill)
+        .height(Length::Fill)
 }
 
 impl Application for ChessBoard {
@@ -163,49 +145,29 @@ impl Application for ChessBoard {
     type Flags = ();
 
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        let mut squares: [[ChessSquare; 8]; 8] = [[ChessSquare::default(); 8]; 8];
-        for col in 0..COL_SIZE {
-            for row in 0..ROW_SIZE {
-                let mut p: Option<Piece> = Option::None;
-                let mut c: Option<PieceColor> = Option::None;
+        let mut squares: [BoardSquare; ALL_SQUARES.len()] =
+            [BoardSquare::default(); ALL_SQUARES.len()];
+        let board = chess::Board::default();
 
-                if col == 0 || col == COL_SIZE - 1 {
-                    if row == 0 || row == ROW_SIZE - 1 {
-                        p = Some(Piece::Rook);
-                    } else if row == 1 || row == ROW_SIZE - 2 {
-                        p = Some(Piece::Knight);
-                    } else if row == 2 || row == ROW_SIZE - 3 {
-                        p = Some(Piece::Bishop);
-                    } else if row == 3 {
-                        p = Some(Piece::Queen);
-                    } else {
-                        p = Some(Piece::King)
-                    }
+        let mut row: u8 = 0;
+        let mut col: u8 = 0;
+        for sq in ALL_SQUARES {
+            let piece = board.piece_on(sq);
+            let color = board.color_on(sq);
 
-                    if col == 0 {
-                        c = Some(PieceColor::Black);
-                    } else {
-                        c = Some(PieceColor::White);
-                    }
-                }
-                if col == 1 || col == COL_SIZE - 2 {
-                    p = Some(Piece::Pawn);
-
-                    if col == 1 {
-                        c = Some(PieceColor::Black);
-                    } else {
-                        c = Some(PieceColor::White);
-                    }
-                }
-
-                squares[col][row] =
-                    ChessSquare::new(col as u8, row as u8, p, c, button::State::default());
+            squares[(col * 8 + row) as usize] = BoardSquare::new(row, col, sq, piece, color, button::State::default());
+            
+            row += 1;
+            if row == 8 {
+                row = 0;
+                col += 1;
             }
         }
 
         (
             ChessBoard {
-                chess_squares: squares,
+                squares: squares,
+                board: Board::default(),
             },
             Command::none(),
         )
@@ -221,17 +183,19 @@ impl Application for ChessBoard {
 
     fn view(&self) -> Element<Message> {
         let mut board_col = Column::new().spacing(0).align_items(Alignment::Center);
-        for col in 0..COL_SIZE {
+
+        for i in [56, 48, 40, 32, 24, 16, 8, 0] {
             let mut board_row = Row::new().spacing(0).align_items(Alignment::Center);
-            for row in 0..ROW_SIZE {
+            let mut cnt = 0;
+            while cnt < 8 {
                 board_row = board_row.push(
-                    Button::new(self.chess_squares[col][row].get_icon())
+                    Button::new(get_icon(self.squares[i].piece, self.squares[i].piece_color))
                         .width(Length::Fixed(SQUARE_SIZE as f32))
                         .height(Length::Fixed(SQUARE_SIZE as f32))
-                        .style(iced::theme::Button::Custom(Box::new(
-                            self.chess_squares[col][row],
-                        ))),
+                        .style(iced::theme::Button::Custom(Box::new(self.squares[i + cnt]))),
                 );
+
+                cnt += 1;
             }
 
             board_col = board_col.push(board_row);
