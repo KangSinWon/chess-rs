@@ -188,11 +188,12 @@ impl Application for ChessBoard {
             let mut board_row = Row::new().spacing(0).align_items(Alignment::Center);
             let mut cnt = 0;
             while cnt < 8 {
+                let pos = i + cnt;
                 board_row = board_row.push(
-                    Button::new(get_icon(self.squares[i].piece, self.squares[i].piece_color))
+                    Button::new(get_icon(self.squares[pos].piece, self.squares[pos].piece_color))
                         .width(Length::Fixed(SQUARE_SIZE as f32))
                         .height(Length::Fixed(SQUARE_SIZE as f32))
-                        .style(iced::theme::Button::Custom(Box::new(self.squares[i + cnt]))),
+                        .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
                 );
 
                 cnt += 1;
