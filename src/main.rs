@@ -21,7 +21,7 @@ pub fn main() -> iced::Result {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message {
-    None,
+    Square(chess::Square),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -83,6 +83,17 @@ impl StyleSheet for BoardSquare {
         Appearance {
             shadow_offset: Default::default(),
             background: self.bg_color,
+            border_radius: BorderRadius::from(0.0),
+            border_width: 0.0,
+            border_color: Default::default(),
+            text_color: Color::new(0.0, 0.0, 0.0, 0.0),
+        }
+    }
+
+    fn pressed(&self, style: &Self::Style) -> Appearance {
+        Appearance {
+            shadow_offset: Default::default(),
+            background: Some(Background::Color(Color::new(0.0, 0.0, 0.0, 0.5))),
             border_radius: BorderRadius::from(0.0),
             border_width: 0.0,
             border_color: Default::default(),
@@ -155,8 +166,9 @@ impl Application for ChessBoard {
             let piece = board.piece_on(sq);
             let color = board.color_on(sq);
 
-            squares[(col * 8 + row) as usize] = BoardSquare::new(row, col, sq, piece, color, button::State::default());
-            
+            squares[(col * 8 + row) as usize] =
+                BoardSquare::new(row, col, sq, piece, color, button::State::default());
+
             row += 1;
             if row == 8 {
                 row = 0;
@@ -178,6 +190,15 @@ impl Application for ChessBoard {
     }
 
     fn update(&mut self, _message: Message) -> Command<Self::Message> {
+        match _message {
+            Message::Square(sq) => {
+                let c = self.board.color_on(sq).unwrap();
+
+                let t = chess::get_pawn_moves(sq, c, *self.board.combined());
+                println!("can move(BitBoard): {}\n{}", t.0, t.reverse_colors());
+            }
+        }
+
         Command::none()
     }
 
@@ -190,10 +211,14 @@ impl Application for ChessBoard {
             while cnt < 8 {
                 let pos = i + cnt;
                 board_row = board_row.push(
-                    Button::new(get_icon(self.squares[pos].piece, self.squares[pos].piece_color))
-                        .width(Length::Fixed(SQUARE_SIZE as f32))
-                        .height(Length::Fixed(SQUARE_SIZE as f32))
-                        .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
+                    Button::new(get_icon(
+                        self.squares[pos].piece,
+                        self.squares[pos].piece_color,
+                    ))
+                    .width(Length::Fixed(SQUARE_SIZE as f32))
+                    .height(Length::Fixed(SQUARE_SIZE as f32))
+                    .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
+                    .on_press(Message::Square(self.squares[pos].position)),
                 );
 
                 cnt += 1;
