@@ -4,11 +4,11 @@ use iced::widget::button::{self, Appearance, StyleSheet};
 use iced::widget::{container, Button, Column, Row, Text};
 use iced::widget::{svg, Svg};
 use iced::{
-    executor, Alignment, Application, Background, BorderRadius, Color, Command, Element, Length,
-    Settings, window,
+    executor, window, Alignment, Application, Background, BorderRadius, Color, Command, Element,
+    Length, Settings,
 };
 
-use chess::{Board, Square, ALL_SQUARES};
+use chess::{BitBoard, Board, Square, ALL_SQUARES};
 
 pub const SQUARE_SIZE: u16 = 50;
 pub const NUM_PIECES: usize = 6;
@@ -16,7 +16,6 @@ pub const ROW_SIZE: usize = 8;
 pub const COL_SIZE: usize = 8;
 
 pub fn main() -> iced::Result {
-
     let window_setting: Settings<()> = iced::settings::Settings {
         window: window::Settings {
             size: (SQUARE_SIZE as u32 * 8, SQUARE_SIZE as u32 * 8),
@@ -203,10 +202,48 @@ impl Application for ChessBoard {
     fn update(&mut self, _message: Message) -> Command<Self::Message> {
         match _message {
             Message::Square(sq) => {
-                let c = self.board.color_on(sq).unwrap();
+                let p = self.board.piece_on(sq);
+                let c = self.board.color_on(sq);
 
-                let t = chess::get_pawn_moves(sq, c, *self.board.combined());
-                println!("can move(BitBoard): {}\n{}", t.0, t.reverse_colors());
+                if p == Option::None || c == Option::None {
+                    return Command::none();
+                }
+
+                println!("Pressed: {}", p.unwrap());
+
+                let moves: BitBoard;
+                match p.unwrap() {
+                    chess::Piece::Pawn => {
+                        moves = chess::get_pawn_moves(sq, c.unwrap(), *self.board.combined())
+                            & !self.board.color_combined(c.unwrap());
+                    }
+                    chess::Piece::Rook => {
+                        moves = chess::get_rook_moves(sq, *self.board.combined())
+                            & !self.board.color_combined(c.unwrap());
+                    }
+                    chess::Piece::Knight => {
+                        moves =
+                            chess::get_knight_moves(sq) & !self.board.color_combined(c.unwrap());
+                    }
+                    chess::Piece::Bishop => {
+                        moves = chess::get_bishop_moves(sq, *self.board.combined())
+                            & !self.board.color_combined(c.unwrap());
+                    }
+                    chess::Piece::Queen => {
+                        let rook_moves = chess::get_rook_moves(sq, *self.board.combined())
+                            & !self.board.color_combined(c.unwrap());
+                        let bishop_moves = chess::get_bishop_moves(sq, *self.board.combined())
+                            & !self.board.color_combined(c.unwrap());
+                        moves = rook_moves | bishop_moves;
+                    }
+                    chess::Piece::King => {
+                        moves = chess::get_king_moves(sq) & !self.board.color_combined(c.unwrap());
+                    }
+                }
+                println!("{}", moves.reverse_colors());
+                for s in moves {
+                    println!("{}", s);
+                }
             }
         }
 
