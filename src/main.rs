@@ -1,5 +1,85 @@
 // source "$HOME/.cargo/env"
 
+mod circle {
+    // For now, to implement a custom native widget you will need to add
+    // `iced_native` and `iced_wgpu` to your dependencies.
+    //
+    // Then, you simply need to define your widget type and implement the
+    // `iced_native::Widget` trait with the `iced_wgpu::Renderer`.
+    //
+    // Of course, you can choose to make the implementation renderer-agnostic,
+    // if you wish to, by creating your own `Renderer` trait, which could be
+    // implemented by `iced_wgpu` and other renderers.
+    use iced::advanced::layout::{self, Layout};
+    use iced::advanced::renderer;
+    use iced::advanced::widget::{self, Widget};
+    use iced::mouse;
+    use iced::{Color, Element, Length, Rectangle, Size};
+
+    pub struct Circle {
+        radius: f32,
+    }
+
+    impl Circle {
+        pub fn new(radius: f32) -> Self {
+            Self { radius }
+        }
+    }
+
+    pub fn circle(radius: f32) -> Circle {
+        Circle::new(radius)
+    }
+
+    impl<Message, Renderer> Widget<Message, Renderer> for Circle
+    where
+        Renderer: renderer::Renderer,
+    {
+        fn width(&self) -> Length {
+            Length::Fill
+        }
+
+        fn height(&self) -> Length {
+            Length::Fill
+        }
+
+        fn layout(&self, _renderer: &Renderer, _limits: &layout::Limits) -> layout::Node {
+            layout::Node::new(Size::new(self.radius * 2.0, self.radius * 2.0))
+        }
+
+        fn draw(
+            &self,
+            _state: &widget::Tree,
+            renderer: &mut Renderer,
+            _theme: &Renderer::Theme,
+            _style: &renderer::Style,
+            layout: Layout<'_>,
+            _cursor: mouse::Cursor,
+            _viewport: &Rectangle,
+        ) {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: layout.bounds(),
+                    border_radius: self.radius.into(),
+                    border_width: 0.0,
+                    border_color: Color::TRANSPARENT,
+                },
+                Color::new(1.0, 1.0, 1.0, 0.5),
+            );
+        }
+    }
+
+    impl<'a, Message, Renderer> From<Circle> for Element<'a, Message, Renderer>
+    where
+        Renderer: renderer::Renderer,
+    {
+        fn from(circle: Circle) -> Self {
+            Self::new(circle)
+        }
+    }
+}
+
+use circle::circle;
+
 use iced::widget::button::{self, Appearance, StyleSheet};
 use iced::widget::{container, Button, Column, Row, Text};
 use iced::widget::{svg, Svg};
@@ -259,14 +339,31 @@ impl Application for ChessBoard {
             while cnt < 8 {
                 let pos = i + cnt;
                 board_row = board_row.push(
-                    Button::new(get_icon(
-                        self.squares[pos].piece,
-                        self.squares[pos].piece_color,
-                    ))
-                    .width(Length::Fixed(SQUARE_SIZE as f32))
-                    .height(Length::Fixed(SQUARE_SIZE as f32))
-                    .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
-                    .on_press(Message::Square(self.squares[pos].position)),
+                    Button::new(iced::widget::Space::new(0, 0))
+                        .width(Length::Fixed(SQUARE_SIZE as f32))
+                        .height(Length::Fixed(SQUARE_SIZE as f32))
+                        .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
+                        .on_press(Message::Square(self.squares[pos].position)),
+                    // Button::new(
+                    //     container(circle(7.))
+                    //         .width(Length::Fixed(SQUARE_SIZE as f32))
+                    //         .height(Length::Fixed(SQUARE_SIZE as f32))
+                    //         .align_x(iced::alignment::Horizontal::Center)
+                    //         .align_y(iced::alignment::Vertical::Center),
+                    // )
+                    // .width(Length::Fixed(SQUARE_SIZE as f32))
+                    // .height(Length::Fixed(SQUARE_SIZE as f32))
+                    // .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
+                    // .on_press(Message::Square(self.squares[pos].position)),
+
+                    // Button::new(get_icon(
+                    //     self.squares[pos].piece,
+                    //     self.squares[pos].piece_color,
+                    // ))
+                    // .width(Length::Fixed(SQUARE_SIZE as f32))
+                    // .height(Length::Fixed(SQUARE_SIZE as f32))
+                    // .style(iced::theme::Button::Custom(Box::new(self.squares[pos])))
+                    // .on_press(Message::Square(self.squares[pos].position)),
                 );
 
                 cnt += 1;
