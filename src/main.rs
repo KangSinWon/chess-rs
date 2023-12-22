@@ -5,7 +5,7 @@ use iced::widget::{container, Button, Column, Row, Text};
 use iced::widget::{svg, Svg};
 use iced::{
     executor, Alignment, Application, Background, BorderRadius, Color, Command, Element, Length,
-    Settings,
+    Settings, window,
 };
 
 use chess::{Board, Square, ALL_SQUARES};
@@ -16,7 +16,18 @@ pub const ROW_SIZE: usize = 8;
 pub const COL_SIZE: usize = 8;
 
 pub fn main() -> iced::Result {
-    ChessBoard::run(Settings::default())
+
+    let window_setting: Settings<()> = iced::settings::Settings {
+        window: window::Settings {
+            size: (SQUARE_SIZE as u32 * 8, SQUARE_SIZE as u32 * 8),
+            resizable: (false),
+            decorations: (true),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    ChessBoard::run(window_setting)
 }
 
 #[derive(Debug, Clone, Copy)]
