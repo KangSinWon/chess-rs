@@ -29,6 +29,51 @@ pub fn main() -> iced::Result {
 struct ChessBoard {
     squares: [ui::button::chessButton::BoardSquare; ALL_SQUARES.len()],
     board: Board,
+
+    // new...
+    selected: Option<chess::Square>,
+    selected_piece: Option<chess::Piece>,
+    movable_squares: BitBoard,
+}
+
+impl ChessBoard {
+    fn get_movable_squares(
+        &self,
+        square: chess::Square,
+        piece: chess::Piece,
+        color: chess::Color,
+    ) -> BitBoard {
+        let moves: BitBoard;
+        match piece {
+            chess::Piece::Pawn => {
+                moves = chess::get_pawn_moves(square, color, *self.board.combined())
+                    & !self.board.color_combined(color);
+            }
+            chess::Piece::Rook => {
+                moves = chess::get_rook_moves(square, *self.board.combined())
+                    & !self.board.color_combined(color);
+            }
+            chess::Piece::Knight => {
+                moves = chess::get_knight_moves(square) & !self.board.color_combined(color);
+            }
+            chess::Piece::Bishop => {
+                moves = chess::get_bishop_moves(square, *self.board.combined())
+                    & !self.board.color_combined(color);
+            }
+            chess::Piece::Queen => {
+                let rook_moves = chess::get_rook_moves(square, *self.board.combined())
+                    & !self.board.color_combined(color);
+                let bishop_moves = chess::get_bishop_moves(square, *self.board.combined())
+                    & !self.board.color_combined(color);
+                moves = rook_moves | bishop_moves;
+            }
+            chess::Piece::King => {
+                moves = chess::get_king_moves(square) & !self.board.color_combined(color);
+            }
+        }
+
+        moves
+    }
 }
 
 impl Application for ChessBoard {
@@ -59,6 +104,9 @@ impl Application for ChessBoard {
             ChessBoard {
                 squares: squares,
                 board: Board::default(),
+                selected: Option::None,
+                selected_piece: Option::None,
+                movable_squares: BitBoard(0),
             },
             Command::none(),
         )
@@ -71,48 +119,62 @@ impl Application for ChessBoard {
     // TODO: update Squares (movable)
     fn update(&mut self, _message: ui::Message) -> Command<Self::Message> {
         match _message {
-            ui::Message::Square(sq) => {
-                let p = self.board.piece_on(sq);
-                let c = self.board.color_on(sq);
+            ui::Message::Square(square) => {
+                println!("Pressed: {}", square);
+
+                let p = self.board.piece_on(square);
+                let c = self.board.color_on(square);
+
+                let mut new_selected = Option::None;
+                let mut new_selected_piece = Option::None;
+                let mut movable_squares: chess::BitBoard = chess::BitBoard(0);
+
+                // 1. select new piece!
+                if self.selected.is_none() && p.is_some() {
+                    new_selected = Some(square);
+                    new_selected_piece = p;
+                    movable_squares = self.get_movable_squares(square, p.unwrap(), c.unwrap());
+                }
+                // if selected pawn
+                if self.selected_piece.unwrap() == chess::Piece::Pawn {
+                    let square_int = square.to_int() as u64;
+                    // can move or can attack
+                    if (square_int & self.movable_squares.0 == square_int)
+                        || (square_int
+                            & chess::get_pawn_attacks(
+                                self.selected.unwrap(),
+                                self.board.side_to_move(),
+                                *self.board.color_combined(self.board.side_to_move()),
+                            )
+                            .0
+                            == square_int)
+                    {
+                        let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
+                        self.board.make_move_new(m);
+                    }
+                } else {
+                    let square_int = square.to_int() as u64;
+                    if square_int & self.movable_squares.0 == square_int {
+                        let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
+                        self.board.make_move_new(m);
+                    } else {
+                        if p.is_some() {
+                            // immovable square -> other piece
+                            // update new_selected, movable_squares
+                            new_selected = Some(square);
+                            new_selected_piece = p;
+                            movable_squares =
+                                self.get_movable_squares(square, p.unwrap(), c.unwrap());
+                        }
+                    }
+                }
+
+                self.selected = new_selected;
+                self.selected_piece = new_selected_piece;
+                self.movable_squares = movable_squares;
 
                 if p == Option::None || c == Option::None {
                     return Command::none();
-                }
-
-                println!("Pressed: {}", p.unwrap());
-
-                let moves: BitBoard;
-                match p.unwrap() {
-                    chess::Piece::Pawn => {
-                        moves = chess::get_pawn_moves(sq, c.unwrap(), *self.board.combined())
-                            & !self.board.color_combined(c.unwrap());
-                    }
-                    chess::Piece::Rook => {
-                        moves = chess::get_rook_moves(sq, *self.board.combined())
-                            & !self.board.color_combined(c.unwrap());
-                    }
-                    chess::Piece::Knight => {
-                        moves =
-                            chess::get_knight_moves(sq) & !self.board.color_combined(c.unwrap());
-                    }
-                    chess::Piece::Bishop => {
-                        moves = chess::get_bishop_moves(sq, *self.board.combined())
-                            & !self.board.color_combined(c.unwrap());
-                    }
-                    chess::Piece::Queen => {
-                        let rook_moves = chess::get_rook_moves(sq, *self.board.combined())
-                            & !self.board.color_combined(c.unwrap());
-                        let bishop_moves = chess::get_bishop_moves(sq, *self.board.combined())
-                            & !self.board.color_combined(c.unwrap());
-                        moves = rook_moves | bishop_moves;
-                    }
-                    chess::Piece::King => {
-                        moves = chess::get_king_moves(sq) & !self.board.color_combined(c.unwrap());
-                    }
-                }
-                println!("{}", moves.reverse_colors());
-                for s in moves {
-                    println!("{}", s);
                 }
             }
         }
