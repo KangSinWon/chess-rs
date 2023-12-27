@@ -33,6 +33,7 @@ struct ChessBoard {
     // new...
     selected: Option<chess::Square>,
     selected_piece: Option<chess::Piece>,
+    selccted_color: Option<chess::Color>,
     movable_squares: BitBoard,
 }
 
@@ -74,6 +75,24 @@ impl ChessBoard {
 
         moves
     }
+
+    fn update_ui_squares(&mut self, movable_squares: BitBoard) {
+        for square in chess::ALL_SQUARES {
+            let p = self.board.piece_on(square);
+            let c = self.board.color_on(square);
+
+            let square_int = square.to_int();
+            let square_bitboard = chess::BitBoard::from_square(square);
+            let mut square_type = ui::SquareType::None;
+
+            if p.is_some() {
+                square_type = ui::SquareType::Piece;
+            } else if square_bitboard & movable_squares == square_bitboard {
+                square_type = ui::SquareType::Moveable;
+            }
+            self.squares[square_int as usize].update(square_type, p, c);
+        }
+    }
 }
 
 impl Application for ChessBoard {
@@ -106,6 +125,7 @@ impl Application for ChessBoard {
                 board: Board::default(),
                 selected: Option::None,
                 selected_piece: Option::None,
+                selccted_color: Option::None,
                 movable_squares: BitBoard(0),
             },
             Command::none(),
@@ -122,60 +142,60 @@ impl Application for ChessBoard {
             ui::Message::Square(square) => {
                 println!("Pressed: {}", square);
 
+                let turn = self.board.side_to_move();
+
                 let p = self.board.piece_on(square);
                 let c = self.board.color_on(square);
 
                 let mut new_selected = Option::None;
                 let mut new_selected_piece = Option::None;
+                let mut new_selected_color = Option::None;
                 let mut movable_squares: chess::BitBoard = chess::BitBoard(0);
 
-                // 1. select new piece!
-                if self.selected.is_none() && p.is_some() {
-                    new_selected = Some(square);
-                    new_selected_piece = p;
-                    movable_squares = self.get_movable_squares(square, p.unwrap(), c.unwrap());
-                }
-                // if selected pawn
-                if self.selected_piece.unwrap() == chess::Piece::Pawn {
-                    let square_int = square.to_int() as u64;
-                    // can move or can attack
-                    if (square_int & self.movable_squares.0 == square_int)
-                        || (square_int
-                            & chess::get_pawn_attacks(
+                if (c.is_some() && turn == c.unwrap())
+                    || (self.selccted_color.is_some() && turn == self.selccted_color.unwrap())
+                {
+                    if self.selected.is_none() {
+                        if p.is_some() {
+                            new_selected = Some(square);
+                            new_selected_piece = p;
+                            new_selected_color = c;
+                            movable_squares =
+                                self.get_movable_squares(square, p.unwrap(), c.unwrap());
+                        }
+                    } else {
+                        if self.selected_piece.unwrap() == chess::Piece::Pawn {
+                            let attack_sqaures = chess::get_pawn_attacks(
                                 self.selected.unwrap(),
                                 self.board.side_to_move(),
                                 *self.board.color_combined(self.board.side_to_move()),
-                            )
-                            .0
-                            == square_int)
-                    {
-                        let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
-                        self.board.make_move_new(m);
-                    }
-                } else {
-                    let square_int = square.to_int() as u64;
-                    if square_int & self.movable_squares.0 == square_int {
-                        let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
-                        self.board.make_move_new(m);
-                    } else {
-                        if p.is_some() {
-                            // immovable square -> other piece
-                            // update new_selected, movable_squares
-                            new_selected = Some(square);
-                            new_selected_piece = p;
-                            movable_squares =
-                                self.get_movable_squares(square, p.unwrap(), c.unwrap());
+                            );
+                            self.movable_squares = self.movable_squares | attack_sqaures;
+                        }
+
+                        let square_bitboard = chess::BitBoard::from_square(square);
+                        if square_bitboard & self.movable_squares == square_bitboard {
+                            let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
+                            self.board = self.board.make_move_new(m);
+                        } else {
+                            if p.is_some() {
+                                new_selected = Some(square);
+                                new_selected_piece = p;
+                                new_selected_color = c;
+                                movable_squares =
+                                    self.get_movable_squares(square, p.unwrap(), c.unwrap());
+                            }
                         }
                     }
                 }
 
                 self.selected = new_selected;
                 self.selected_piece = new_selected_piece;
+                self.selccted_color = new_selected_color;
                 self.movable_squares = movable_squares;
 
-                if p == Option::None || c == Option::None {
-                    return Command::none();
-                }
+                // update squares (board, movable_squares)
+                self.update_ui_squares(self.movable_squares);
             }
         }
 

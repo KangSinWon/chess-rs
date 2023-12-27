@@ -119,6 +119,17 @@ pub mod chessButton {
                 piece_color,
             }
         }
+
+        pub fn update(
+            &mut self,
+            _type: ui::SquareType,
+            _piece: Option<chess::Piece>,
+            _color: Option<chess::Color>,
+        ) {
+            self.square_type = _type;
+            self.piece = _piece;
+            self.piece_color = _color;
+        }
     }
 
     impl StyleSheet for BoardSquare {
