@@ -140,9 +140,8 @@ impl Application for ChessBoard {
     fn update(&mut self, _message: ui::Message) -> Command<Self::Message> {
         match _message {
             ui::Message::Square(square) => {
-                println!("Pressed: {}", square);
-
                 let turn = self.board.side_to_move();
+                println!("{:?} -> Pressed: {}", turn, square);
 
                 let p = self.board.piece_on(square);
                 let c = self.board.color_on(square);
@@ -178,7 +177,7 @@ impl Application for ChessBoard {
                             let m = chess::ChessMove::new(self.selected.unwrap(), square, None);
                             self.board = self.board.make_move_new(m);
                         } else {
-                            if p.is_some() {
+                            if p.is_some() && (turn == c.unwrap()) {
                                 new_selected = Some(square);
                                 new_selected_piece = p;
                                 new_selected_color = c;
